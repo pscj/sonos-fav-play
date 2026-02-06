@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import soco
 from soco import SoCo
+from soco.data_structures import DidlPlaylistContainer
+from soco.xml import XML
 import sys
 import re
 import html
@@ -93,19 +95,23 @@ try:
     container_uri = f"x-rincon-cpcontainer:{target_uuid}?sid={MY_SERVICE_ID}&flags=8300&sn={MY_ACCOUNT_ID}"
     print(f"   构造的 URI: {container_uri}")
 
-    # 4. 构造 Metadata
+    # 4. 构造 Metadata (使用 soco 的 DIDL 类)
+    print("正在构造 DIDL metadata...")
+    didl_obj = DidlPlaylistContainer(
+        title=target_title,
+        parent_id="root",
+        item_id=target_uuid,
+        desc=MY_ACCOUNT_ID
+    )
+    
+    # 转换为 DIDL-Lite XML 格式 (不在 item 上重复命名空间)
+    didl_item = XML.tostring(didl_obj.to_element(), encoding='unicode')
     didl_metadata = (
         f'<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
         f'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" '
         f'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
         f'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
-        f'<item id="{target_uuid}" parentID="root" restricted="true">'
-        f'<dc:title>{target_title}</dc:title>'
-        f'<upnp:class>object.container.playlistContainer</upnp:class>'
-        f'<desc id="cdudn" nameSpace="urn:schemas-rinconnetworks-com:metadata-1-0/">'
-        f'{MY_ACCOUNT_ID}'
-        f'</desc>'
-        f'</item>'
+        f'{didl_item}'
         f'</DIDL-Lite>'
     )
 
@@ -113,7 +119,7 @@ try:
     print("正在发送 AddURIToQueue...")
     sonos.clear_queue()
     
-    # 使用底层调用
+    # 使用底层调用 (add_uri_to_queue 方法对 metadata 格式要求不同)
     sonos.avTransport.AddURIToQueue([
         ('InstanceID', 0),
         ('EnqueuedURI', container_uri),

@@ -1,16 +1,12 @@
+# -*- coding: utf-8 -*-
 import soco
 from soco import SoCo
 import sys
 import re
 import html
-import urllib.parse
 
 # ================= 配置区域 =================
-target_fav_name = "每日推荐"  # 🎯 只需修改这个参数即可切换频道!
-
-# 【抓包发现的魔法数字】
-# 抓包 parentID="10142064..." -> 这里的 2064 就是前缀
-MAGIC_HEX_PREFIX = "2064" 
+target_fav_name = "摸鱼早报"  # 🎯 只需修改这个参数即可切换频道!
 # ===========================================
 
 try:
@@ -55,10 +51,10 @@ try:
             # 提取元数据
             raw_meta = getattr(fav, 'resource_meta_data', '') or getattr(fav, 'metadata', '')
             clean_meta = html.unescape(raw_meta)
-            print(clean_meta)
+            # print(clean_meta)
             
             # 提取 UUID (格式: 2b123ac0-...)
-            uuid_match = re.search(r'id="[^"]*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', clean_meta)
+            uuid_match = re.search(r'id="([^"]+)"', clean_meta)
             if uuid_match:
                 target_uuid = uuid_match.group(1)
                 target_title = fav.title
@@ -92,27 +88,18 @@ try:
         print(f"\n请检查收藏夹 '{target_fav_name}' 是否存在。")
         sys.exit(1)
 
-    # 3. 构造 URI (基于抓包数据修正)
+    # 3. 构造 URI
     print("正在构造播放 URI...")
-    
-    # URL 编码 UUID (虽然 UUID 一般不需要编码，但为了保险)
-    safe_uuid = urllib.parse.quote(target_uuid)
-    
-    # 构造格式: x-rincon-cpcontainer:1006[Hex前缀][UUID]
-    # 1006 是 Container 的标准头
-    # 2064 是从抓包 parentID 10142064... 里推导出来的
-    container_uri = f"x-rincon-cpcontainer:1006{MAGIC_HEX_PREFIX}{safe_uuid}?sid={MY_SERVICE_ID}&flags=8300&sn={MY_ACCOUNT_ID}"
-    
+    container_uri = f"x-rincon-cpcontainer:{target_uuid}?sid={MY_SERVICE_ID}&flags=8300&sn={MY_ACCOUNT_ID}"
     print(f"   构造的 URI: {container_uri}")
 
     # 4. 构造 Metadata
-    # 注意：这里 class 必须是 playlistContainer
     didl_metadata = (
         f'<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
         f'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" '
         f'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
         f'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
-        f'<item id="1006{MAGIC_HEX_PREFIX}{safe_uuid}" parentID="root" restricted="true">'
+        f'<item id="{target_uuid}" parentID="root" restricted="true">'
         f'<dc:title>{target_title}</dc:title>'
         f'<upnp:class>object.container.playlistContainer</upnp:class>'
         f'<desc id="cdudn" nameSpace="urn:schemas-rinconnetworks-com:metadata-1-0/">'
@@ -135,11 +122,8 @@ try:
         ('EnqueueAsNext', 1)
     ])
     
-    print("✅ 入队成功！")
     print("播放中...")
     sonos.play_from_queue(0)
 
 except Exception as e:
     print(f"❌ 失败: {e}")
-    if "800" in str(e):
-        print("\n💡 分析: 如果还是 800 错误，尝试把脚本里的 MAGIC_HEX_PREFIX 改成 '6028' (抓包里的 flags) 试试。")

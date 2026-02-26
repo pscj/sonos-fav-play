@@ -30,7 +30,7 @@ try:
     # 如果没有组长,选择第一个设备
     if not device:
         device = list(devices)[0]
-    
+
     print(f"连接到: {device.player_name} ({device.ip_address})")
 
     # 自动切换到组长
@@ -127,7 +127,24 @@ try:
         ('DesiredFirstTrackNumberEnqueued', 0),
         ('EnqueueAsNext', 1)
     ])
-    
+
+    # 6. 仅保留队列中的最新一条
+    queue_items = sonos.get_queue(start=0, max_items=1)
+    if not queue_items:
+        print("❌ 入队后队列为空")
+        sys.exit(1)
+
+    total_items = int(getattr(queue_items, 'total_matches', len(queue_items)))
+    print(f"入队后队列总数: {total_items}")
+
+    for idx in range(total_items - 1, 0, -1):
+        sonos.remove_from_queue(idx)
+
+    latest_item = sonos.get_queue(start=0, max_items=1)[0]
+    after_total = int(getattr(sonos.get_queue(start=0, max_items=1), 'total_matches', 1))
+    print(f"清理后队列总数: {after_total}")
+    print(f"✅ 仅保留最新 1 条: {latest_item.title}")
+
     print("播放中...")
     sonos.play_from_queue(0)
 
